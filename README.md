@@ -1,15 +1,7 @@
-# cliquer
+# Cliquer
 
-To install dependencies:
+Parameterized HTTP Nix builder
 
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.1.29. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+Run a nix build for any github repo, and get a tar of the result. Define
+parameters that you can pass into the build by providing a github repo with a
+top level `.cliquet.yaml`, or by passing a link to one to this builder.
