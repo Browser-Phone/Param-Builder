@@ -1,0 +1,7 @@
+version: "3"
+services:
+  myapp:
+    image: localhost/cliquet:latest
+    container_name: cliquet
+    ports:
+      - "8080:80"
