@@ -1,7 +1,7 @@
 version: "3"
 services:
-  myapp:
+  cliquer:
     image: localhost/cliquet:latest
-    container_name: cliquet
+    command: ["cliquet", "-p", "8080", "-H", "cliquer"]
     ports:
-      - "8000:80"
+      - "8080:8080"

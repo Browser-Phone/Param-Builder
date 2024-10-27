@@ -21,7 +21,7 @@
       };
       devShells.default = pkgs.mkShell {
         packages = with pkgs; [
-          deno
+          bun
           podman-compose
         ];
       };

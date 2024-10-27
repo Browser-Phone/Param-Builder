@@ -1,6 +1,6 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import app from "./api/app";
+import app from "@api/app";
 
 interface ArgvType {
   port: number;

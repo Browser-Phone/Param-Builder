@@ -1,5 +1,5 @@
 import express from "express";
-import { doBuild } from "../routes/buildController.ts";
+import { doBuild } from "@api/controllers/buildController";
 
 const router = express.Router();
 

@@ -26,11 +26,12 @@
   },
   "scripts": {
     "run": "bun run src/main.ts",
-    "build": "bun run ./bundle.ts",
+    "dev": "bun run --watch src/main.ts",
+    "build": "bun build src/main.ts --outdir=dist --target=bun",
     "test": "bunx jest 'tests' --coverage",
     "test:debug": "DEBUG=supertest:*,express:* bunx jest 'tests'",
-    "lint": "eslint",
-    "fmt": "bun fmt"
+    "lint": "bunx eslint",
+    "fmt": "bunx eslint --fix"
   },
   "type": "module"
 }

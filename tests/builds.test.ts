@@ -1,6 +1,6 @@
 import { describe, it } from "@jest/globals";
 import supertest from "supertest";
-import app from "../src/api/app";
+import app from "@api/app";
 
 const randomPort = () => Math.floor(Math.random() * 1000) + 8000;
 
@@ -15,6 +15,6 @@ describe("POST /build", () => {
         output: "default",
       })
       .send({ callback: `http://localhost:${port}` })
-      .expect(201);
+      .expect(202);
   });
 });

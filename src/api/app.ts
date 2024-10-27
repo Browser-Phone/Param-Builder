@@ -1,4 +1,4 @@
-import buildRoute from "./controllers/buildRoute.ts";
+import buildRoute from "@api/routes/buildRoute";
 import express from "express";
 import bodyParser from "body-parser";
 
