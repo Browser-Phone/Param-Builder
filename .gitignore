@@ -1,5 +1,6 @@
 # Nix stuff
 result
+image
 .direnv
 dist
 out

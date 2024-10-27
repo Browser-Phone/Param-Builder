@@ -1,8 +1,9 @@
 all: image load
 
 run: image
+	podman image rm -f localhost/cliquer:latest
 	podman load -i ./image
-	podman-compose up
+	podman-compose up --force-recreate
 
 load: image
 	podman load -i ./image
