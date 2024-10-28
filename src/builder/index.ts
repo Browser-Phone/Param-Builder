@@ -1,9 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-  BuilderError,
-  BuilderLocateError,
-  BuilderTimeoutError,
-} from "@/builder/errors";
+import { BuilderError, BuilderTimeoutError } from "@/builder/errors";
 import { z } from "zod";
 
 const BuildOutputSchema = z.object({
@@ -11,10 +7,11 @@ const BuildOutputSchema = z.object({
   outputs: z.record(z.string(), z.string()),
 });
 
-const baseBuildOptions = [
-  "--no-link", // Do not create symlinks to the build
-  "--json", // Get json output
-];
+export type BuildOutput = z.infer<typeof BuildOutputSchema>;
+
+export type BuildInputs = {
+  [key: string]: string | number | boolean | BuildInputs;
+};
 
 export interface BuilderOptions {
   nixCmd: string;
@@ -22,17 +19,42 @@ export interface BuilderOptions {
   timeout?: number;
 }
 
-export default class Builder {
-  #logs: string[] = [];
-  private options: BuilderOptions = { nixCmd: "nix", nixArgs: [] };
+interface BuilderConstructorParams {
+  target: string;
+  output?: string;
+  inputs?: BuildInputs;
+  callback: (output: string) => void;
+  system?: string;
+  namespace?: string;
+  options?: Partial<BuilderOptions>;
+}
 
-  constructor(
-    private target: string,
-    private output: string,
-    private callback: (output: string) => void,
-    options: Partial<BuilderOptions> = {},
-  ) {
+export default class Builder {
+  private options: BuilderOptions = { nixCmd: "nix", nixArgs: [] };
+  private target: string;
+  private output: string;
+  private inputs: BuildInputs;
+  private callback: (output: string) => void;
+  private system: string;
+  private namespace: string;
+  #logs: string[] = [];
+
+  constructor({
+    target,
+    output = "default",
+    inputs = {},
+    callback,
+    system = "x86_64-linux",
+    namespace = "cliquers",
+    options = {},
+  }: BuilderConstructorParams) {
     this.options = { ...this.options, ...options };
+    this.target = target;
+    this.output = output;
+    this.inputs = inputs;
+    this.callback = callback;
+    this.system = system;
+    this.namespace = namespace;
   }
 
   /**
@@ -55,18 +77,21 @@ export default class Builder {
       const errBuffer: string[] = [];
 
       // Construct the full command as an array
+      const expression =
+        `(builtins.getFlake "${this.target}")` +
+        `.outputs.${this.namespace}.${this.system}.${this.output} ` +
+        `(builtins.fromJSON ''${JSON.stringify(this.inputs)}'')`;
       const commandArray = [
         "build",
-        `${this.target}#${this.output}`,
-        ...baseBuildOptions,
+        "--impure",
+        "--json",
         ...this.options.nixArgs,
+        "--expr",
+        expression,
       ];
+      console.log("Command array:", commandArray);
 
       // Spawn the nix build process
-      console.log(
-        "Executing command:",
-        [this.options.nixCmd, ...commandArray].join(" "),
-      );
       const builder = spawn(this.options.nixCmd, commandArray, {
         timeout: this.options.timeout,
       });
@@ -82,6 +107,7 @@ export default class Builder {
         errBuffer.push(data);
       });
 
+      // Handle the exit code of the build process
       builder.on("close", (code) => {
         console.log("Nix build process exited with code", code);
 

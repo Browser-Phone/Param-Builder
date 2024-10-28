@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Builder from "@/builder";
-import type { BuilderOptions } from "@/builder";
+import type { BuilderOptions, BuildInputs } from "@/builder";
 import {
   BuilderLocateError,
   BuilderTimeoutError,
@@ -25,60 +25,44 @@ const doBuildQueryParamSchema = z.object({
     .default("default"),
 });
 
+const BuildInputsSchema: z.ZodType<BuildInputs> = z.lazy(() =>
+  z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), BuildInputsSchema]),
+  ),
+);
+
 const doBuildBodySchema = z.object({
   callback: z.string().url(),
+  inputs: BuildInputsSchema.default({}),
 });
 
 export const doBuild = async (req: Request, res: Response) => {
   console.log("Received build request", req.query, req.body);
+
+  // Validaate request query params
   const zQueryParams = doBuildQueryParamSchema.safeParse(req.query);
   if (!zQueryParams.success) {
     res.status(400).json({ errors: zQueryParams.error.errors });
     return;
   }
 
+  // Validate request body
   const zBody = doBuildBodySchema.safeParse(req.body);
   if (!zBody.success) {
     res.status(400).json({ errors: zBody.error.errors });
     return;
   }
 
-  const mkBuilder = (
-    callback: (output: string) => void,
-    options: Partial<BuilderOptions> = {},
-  ) =>
-    new Builder(
-      zQueryParams.data!.target,
-      zQueryParams.data!.output,
-      callback,
-      options,
-    );
-
-  // Run a dry run before responding to make sure build will be possible
-  let dryRunPass = true;
-  await mkBuilder(() => {}, {
-    timeout: DRY_RUN_TIMEOUT,
-    nixArgs: ["--dry-run"],
-  })
-    .build()
-    .catch((e: BuilderError) => {
-      if (e instanceof BuilderLocateError) {
-        res.status(404).json({ errors: [e.message] });
-        dryRunPass = false;
-      }
-      if (e instanceof BuilderError && !(e instanceof BuilderTimeoutError)) {
-        res.status(500).json({ errors: [e.message] });
-        dryRunPass = false;
-      }
-    });
-
-  if (!dryRunPass) {
-    return;
-  }
-
-  // Start the build in the background and return 201 (successfully started)
-  mkBuilder((output) => {
-    console.log(`Build completed! Located @ ${output}.`);
+  // Start the build
+  new Builder({
+    target: zQueryParams.data!.target,
+    output: zQueryParams.data!.output,
+    callback: (output) => {
+      console.log(`Build completed! Located @ ${output}.`);
+    },
+    inputs: zBody.data.inputs,
+    options: {},
   })
     .build()
     .then(() => {
@@ -91,6 +75,8 @@ export const doBuild = async (req: Request, res: Response) => {
         `Build of ${zQueryParams.data!.target}#${zQueryParams.data!.output} failed: ${e}`,
       );
     });
+
+  // Respond to the client with awk
   res.status(202).json({ message: "Build started" });
   return;
 };
