@@ -12,7 +12,7 @@
     installPhase = "cp -r node_modules $out";
     outputHashAlgo = "sha256";
     outputHashMode = "recursive";
-    outputHash = "sha256-3e0qeIzG21n+dG1Ly4HaYAyQpoWLQq+dPNmApNnlXI0=";
+    outputHash = "sha256-8JdHU5JeBJJ9VAg8wfY0ekZPYQnbvg72d+8cA+tcb7Q=";
   };
 
   bundle = pkgs.stdenvNoCC.mkDerivation {

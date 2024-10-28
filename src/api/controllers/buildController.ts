@@ -6,43 +6,68 @@ import { z } from "zod";
 import { StatusCodes } from "http-status-codes";
 import * as fs from "fs";
 import fetch from "node-fetch";
+import "zod-openapi/extend";
 
 const gitTargetSchema = (service: string) =>
-  z.string({ message: `Must be valid ${service} flake input uri` });
+  z.string({ message: `Must be valid ${service} flake input uri` }).openapi({
+    description: `The ${service} flake input uri to build`,
+    example:
+      service === "github"
+        ? `${service}:Cliquers/text-file-build`
+        : `${service}:owner/repo`,
+  });
 
-const doBuildQueryParamSchema = z.object({
-  target: z.union([
-    gitTargetSchema("github"),
-    gitTargetSchema("gitlab"),
-    gitTargetSchema("bitbucket"),
-  ]),
-  output: z
-    .string()
-    .regex(/^[a-zA-Z_][a-zA-Z0-9_'\.-]*$/)
-    .default("default"),
-});
+const buildControllerQuerySchema = z
+  .object({
+    target: z
+      .union([
+        gitTargetSchema("github"),
+        gitTargetSchema("gitlab"),
+        gitTargetSchema("bitbucket"),
+      ])
+      .openapi({
+        description: "The target flake URI to build",
+        example: "github:Cliquers/text-file-build",
+      }),
+    output: z
+      .string()
+      .regex(/^[a-zA-Z_][a-zA-Z0-9_'\.-]*$/)
+      .default("default")
+      .openapi({
+        description: "The function to target from the flake.",
+        example: "file",
+      }),
+  })
+  .openapi({
+    description: "Query parameters for the build endpoint",
+  });
 
-const buildInputsSchema: z.ZodType<BuildInputs> = z.lazy(() =>
+const primitiveSchema = z.union([z.string(), z.number(), z.boolean()]);
+const buildInputsSchema = z.lazy(() =>
   z.record(
     z.string(),
-    z.union([z.string(), z.number(), z.boolean(), buildInputsSchema]),
+    z.union([
+      primitiveSchema,
+      z.array(primitiveSchema),
+      z.record(z.string(), primitiveSchema),
+    ]),
   ),
 );
 
-const buildControllerSchema = z.object({
+const buildControllerBodySchema = z.object({
   callback: z.string().url(),
   inputs: buildInputsSchema.default({}),
 });
 
 interface BuildControllerRequest extends Request {
-  body: z.infer<typeof buildControllerSchema>;
+  body: z.infer<typeof buildControllerBodySchema>;
 }
 
 const buildController = async (req: BuildControllerRequest, res: Response) => {
   console.log("Received build request", req.query, req.body);
 
   // Validaate request query params
-  const zQueryParams = doBuildQueryParamSchema.safeParse(req.query);
+  const zQueryParams = buildControllerQuerySchema.safeParse(req.query);
   if (!zQueryParams.success) {
     res.status(400).json({ errors: zQueryParams.error.errors });
     return;
@@ -94,4 +119,8 @@ const buildController = async (req: BuildControllerRequest, res: Response) => {
   return;
 };
 
-export { buildController, buildControllerSchema };
+export {
+  buildController,
+  buildControllerBodySchema,
+  buildControllerQuerySchema,
+};
