@@ -1,6 +1,11 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import app from "@api/app";
+import * as fs from "fs";
+import { StatusCodes } from "http-status-codes";
+import { getNixSystem } from "./utils";
+
+process.env.NIX_SYSTEM = await getNixSystem();
 
 interface ArgvType {
   port: number;

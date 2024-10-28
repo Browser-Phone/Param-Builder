@@ -1,14 +1,11 @@
 import { Request, Response } from "express";
 import Builder from "@/builder";
-import type { BuilderOptions, BuildInputs } from "@/builder";
-import {
-  BuilderLocateError,
-  BuilderTimeoutError,
-  BuilderError,
-} from "@/builder/errors";
+import type { BuildInputs } from "@/builder";
+import { BuilderError } from "@/builder/errors";
 import { z } from "zod";
-
-const DRY_RUN_TIMEOUT = 1000;
+import { StatusCodes } from "http-status-codes";
+import * as fs from "fs";
+import fetch from "node-fetch";
 
 const gitTargetSchema = (service: string) =>
   z.string({ message: `Must be valid ${service} flake input uri` });
@@ -25,19 +22,23 @@ const doBuildQueryParamSchema = z.object({
     .default("default"),
 });
 
-const BuildInputsSchema: z.ZodType<BuildInputs> = z.lazy(() =>
+const buildInputsSchema: z.ZodType<BuildInputs> = z.lazy(() =>
   z.record(
     z.string(),
-    z.union([z.string(), z.number(), z.boolean(), BuildInputsSchema]),
+    z.union([z.string(), z.number(), z.boolean(), buildInputsSchema]),
   ),
 );
 
-const doBuildBodySchema = z.object({
+const buildControllerSchema = z.object({
   callback: z.string().url(),
-  inputs: BuildInputsSchema.default({}),
+  inputs: buildInputsSchema.default({}),
 });
 
-export const doBuild = async (req: Request, res: Response) => {
+interface BuildControllerRequest extends Request {
+  body: z.infer<typeof buildControllerSchema>;
+}
+
+const buildController = async (req: BuildControllerRequest, res: Response) => {
   console.log("Received build request", req.query, req.body);
 
   // Validaate request query params
@@ -47,23 +48,35 @@ export const doBuild = async (req: Request, res: Response) => {
     return;
   }
 
-  // Validate request body
-  const zBody = doBuildBodySchema.safeParse(req.body);
-  if (!zBody.success) {
-    res.status(400).json({ errors: zBody.error.errors });
-    return;
-  }
-
   // Start the build
-  new Builder({
+  let cleanup = () => {};
+  let builder = new Builder({
     target: zQueryParams.data!.target,
     output: zQueryParams.data!.output,
-    callback: (output) => {
-      console.log(`Build completed! Located @ ${output}.`);
+    callback: async (output: string) => {
+      const fileStream = fs.createReadStream(output);
+      const { size } = await fs.promises.stat(output);
+      console.log("Sending build output to", req.body.callback);
+      fetch(req.body.callback, {
+        method: "POST",
+        body: fileStream,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": String(size),
+        },
+      }).then((resp) => {
+        console.log("Build output sent", resp.status);
+        cleanup;
+      });
     },
-    inputs: zBody.data.inputs,
+    inputs: req.body.inputs,
     options: {},
-  })
+  });
+  cleanup = () => {
+    console.log("Cleaning up after build");
+    builder.cleanup();
+  };
+  builder
     .build()
     .then(() => {
       console.log(
@@ -77,6 +90,8 @@ export const doBuild = async (req: Request, res: Response) => {
     });
 
   // Respond to the client with awk
-  res.status(202).json({ message: "Build started" });
+  res.status(StatusCodes.ACCEPTED).json({ message: "Build started" });
   return;
 };
+
+export { buildController, buildControllerSchema };

@@ -37,6 +37,7 @@ export default class Builder {
   private callback: (output: string) => void;
   private system: string;
   private namespace: string;
+  private derivationOutput: string | null = null;
   #logs: string[] = [];
 
   constructor({
@@ -44,7 +45,7 @@ export default class Builder {
     output = "default",
     inputs = {},
     callback,
-    system = "x86_64-linux",
+    system = process.env.NIX_SYSTEM || "x86_64-linux",
     namespace = "cliquers",
     options = {},
   }: BuilderConstructorParams) {
@@ -83,6 +84,7 @@ export default class Builder {
         `(builtins.fromJSON ''${JSON.stringify(this.inputs)}'')`;
       const commandArray = [
         "build",
+        "--no-link",
         "--impure",
         "--json",
         ...this.options.nixArgs,
@@ -120,7 +122,8 @@ export default class Builder {
               const output = BuildOutputSchema.safeParse(
                 JSON.parse(this.logs())[0],
               );
-              resolve(output.data!.outputs.out);
+              this.derivationOutput = output.data!.outputs.out;
+              resolve(this.derivationOutput);
             } catch (e) {
               if (e instanceof SyntaxError) {
                 reject(new BuilderError("Invalid JSON output"));
@@ -161,4 +164,34 @@ export default class Builder {
     const output = await this.spawn();
     this.callback(output);
   };
+
+  /**
+   * Runs the nix garbage collection process.
+   * @returns {Promise<void>} A promise that resolves when the garbage
+   * collection
+   * @public
+   * @memberof Builder
+   **/
+  public cleanup = (): Promise<void> =>
+    new Promise((reject, resolve) => {
+      if (!this.derivationOutput) {
+        return Promise.resolve();
+      } else {
+        const proc = spawn(this.options.nixCmd, [
+          "store",
+          "--delete",
+          this.derivationOutput,
+        ]);
+
+        proc.stderr.on("data", console.error);
+
+        proc.on("close", (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject();
+          }
+        });
+      }
+    });
 }

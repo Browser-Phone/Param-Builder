@@ -1,8 +1,12 @@
 import express from "express";
-import { doBuild } from "@api/controllers/buildController";
+import {
+  buildController,
+  buildControllerSchema,
+} from "@api/controllers/buildController";
+import { validateData } from "@api/middlewares/validationMiddleware";
 
 const router = express.Router();
 
-router.post("/", doBuild);
+router.post("/", validateData(buildControllerSchema), buildController);
 
 export default router;

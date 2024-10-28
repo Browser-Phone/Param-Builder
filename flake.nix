@@ -20,6 +20,7 @@
         docker = import ./nix/docker.nix {inherit pkgs server;};
       };
       devShells.default = pkgs.mkShell {
+        NODE_ENV = "development";
         packages = with pkgs; [
           bun
           podman-compose
