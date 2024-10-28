@@ -36,6 +36,7 @@
     "test": "bunx jest 'tests' --coverage",
     "test:debug": "DEBUG=supertest:*,express:* bunx jest 'tests'",
     "test:receive": "bun run tests/receive.ts",
+    "test:receive-docker": "env DOCKER='true' bun run tests/receive.ts",
     "lint": "bunx eslint",
     "fmt": "bunx eslint --fix"
   },

@@ -21,6 +21,8 @@ app.post("/upload", (req, res) => {
   });
 });
 
-app.listen(3000, "localhost", () => {
+const host = process.env.DOCKER === "true" ? "0.0.0.0" : "localhost";
+
+app.listen(3000, host, () => {
   console.log("Server is running on http://localhost:3000");
 });
