@@ -1,14 +1,13 @@
 import yargs from "yargs";
+import router from "@api/routes";
 import { hideBin } from "yargs/helpers";
-import app from "@api/app";
 import { getNixSystem } from "./utils";
-import "zod-openapi/extend";
-
+import { createServer } from "express-zod-api";
+import config from "@api/config";
 process.env.NIX_SYSTEM = await getNixSystem();
 
 interface ArgvType {
   port: number;
-  host: string;
   [x: string]: unknown;
 }
 
@@ -19,19 +18,9 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 8000,
   })
-  .option("host", {
-    alias: "H",
-    description: "Host to run the server on",
-    type: "string",
-    default: "localhost",
-  })
   .alias("help", "h")
   .showHelpOnFail(false)
   .parseSync() as ArgvType;
 
-const PORT = argv.port;
-const HOST = argv.host;
-
-app.listen(PORT, HOST, () => {
-  console.log(`Server is running on http://${HOST}:${PORT}`);
-});
+config.server.listen = argv.port;
+createServer(config, router);

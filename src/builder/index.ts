@@ -9,9 +9,26 @@ const BuildOutputSchema = z.object({
 
 export type BuildOutput = z.infer<typeof BuildOutputSchema>;
 
-export type BuildInputs = {
-  [key: string]: string | number | boolean | BuildInputs;
-};
+const primitiveSchema = z.union([z.string(), z.number(), z.boolean()]);
+export const buildInputsSchema = z.lazy(() =>
+  z.record(
+    z.string(),
+    z.union([
+      primitiveSchema,
+      z.array(primitiveSchema),
+      z.record(z.string(), primitiveSchema),
+    ]),
+  ),
+);
+export type BuildInputs = z.infer<typeof buildInputsSchema>;
+
+export const buildStatusSchema = z.enum([
+  "pending",
+  "running",
+  "complete",
+  "failed",
+]);
+export type BuildStatus = z.infer<typeof buildStatusSchema>;
 
 export interface BuilderOptions {
   nixCmd: string;
@@ -39,6 +56,8 @@ export default class Builder {
   private namespace: string;
   private derivationOutput: string | null = null;
   #logs: string[] = [];
+  #startTime: Date | null = null;
+  #status: BuildStatus = "pending";
 
   constructor({
     target,
@@ -56,6 +75,14 @@ export default class Builder {
     this.callback = callback;
     this.system = system;
     this.namespace = namespace;
+  }
+
+  get startTime(): Date | null {
+    return this.#startTime;
+  }
+
+  get status(): BuildStatus {
+    return this.#status;
   }
 
   /**
@@ -97,6 +124,7 @@ export default class Builder {
       const builder = spawn(this.options.nixCmd, commandArray, {
         timeout: this.options.timeout,
       });
+      this.#status = "running";
 
       // Pipe the output of the build process to the logs
       builder.stdout.on("data", (data) => {
@@ -112,6 +140,7 @@ export default class Builder {
       // Handle the exit code of the build process
       builder.on("close", (code) => {
         console.log("Nix build process exited with code", code);
+        this.#status = "complete";
 
         switch (code) {
           case null:
@@ -138,6 +167,7 @@ export default class Builder {
             }
             break;
           default:
+            this.#status = "failed";
             if (/interrupted by the user/.test(errBuffer.join("\n"))) {
               reject(
                 new BuilderTimeoutError("Build was interrupted by the user"),
@@ -161,6 +191,7 @@ export default class Builder {
    * @memberof Builder
    **/
   public build = async (): Promise<void> => {
+    this.#startTime = new Date();
     const output = await this.spawn();
     this.callback(output);
   };
